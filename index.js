@@ -9,29 +9,43 @@ const path = process.argv[3]
 const key = process.argv[4]
 
 if (op === 'send') {
-  console.log('share ' + path)
-  const feed = hypercoreIndexedFile(path, (err) => {
+  console.error('share ' + path)
+  if (path === '-') {
+    const feed = hypercore(ram)
+    feed.ready(() => {
+      process.stdin.pipe(feed.createWriteStream())
+      onfeed(null, feed)
+    })
+  } else {
+    const feed = hypercoreIndexedFile(path, err => onfeed(err, feed))
+  }
+
+  function onfeed (err, feed) {
+    if (err) return console.error(err)
     const swarm = replicator(feed)
-    console.log('replicating ' + feed.key.toString('hex'))
+    console.error('replicating ' + feed.key.toString('hex'))
     feed.on('peer-add', peer => {
-      console.log('new peer, starting sync')
+      console.error('new peer, starting sync')
     })
     feed.on('peer-remove', peer => {
-      console.log('peer removed')
+      console.error('peer removed')
     })
-  })
+  }
 } else if (op === 'recv') {
-  console.log(`write ${key} into ${path}`)
+  console.error(`write ${key} into ${path}`)
   const feed = hypercore(ram, key)
   const swarm = replicator(feed)
   feed.on('peer-add', peer => {
-    console.log('new peer, starting sync')
+    console.error('new peer, starting sync')
   })
-  const target = fs.createWriteStream(path)
+  let target
+  if (path === '-') target = process.stdout
+  else target = fs.createWriteStream(path)
+
   feed.createReadStream({ live: true }).pipe(target)
   feed.on('sync', () => {
-    console.log('synced')
+    console.error('synced')
   })
 } else {
-  console.log(`usage: hypercore-sendfile recv|send PATH [KEY]`)
+  console.error(`usage: hypercore-sendfile recv|send PATH [KEY]`)
 }
